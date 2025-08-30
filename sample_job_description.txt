@@ -1,0 +1,30 @@
+Senior Cloud Solutions Architect
+
+We are seeking a dynamic and experienced Senior Cloud Solutions Architect to join our innovative technology team. The ideal candidate will be responsible for designing and implementing cutting-edge cloud solutions that drive business transformation and operational excellence.
+
+Key Responsibilities:
+• Lead the design and architecture of scalable cloud solutions across multiple platforms (AWS, Azure, GCP)
+• Collaborate with cross-functional teams to understand business requirements and translate them into technical solutions
+• Develop comprehensive solution proposals and technical documentation
+• Drive cloud adoption strategies and best practices implementation
+• Mentor junior architects and provide technical leadership
+• Engage with clients to understand their needs and present tailored solutions
+• Ensure solutions meet security, compliance, and performance requirements
+
+Required Skills:
+• Extensive experience with cloud platforms (AWS, Azure, GCP)
+• Strong background in solution architecture and enterprise design
+• Proven track record of delivering complex cloud projects
+• Excellent communication and presentation skills
+• Experience with DevOps practices and CI/CD pipelines
+• Knowledge of containerization technologies (Docker, Kubernetes)
+• Understanding of microservices architecture and API design
+
+Preferred Qualifications:
+• Cloud certifications (AWS Solutions Architect Professional, Azure Solutions Architect Expert)
+• Experience with AI/ML integration in cloud environments
+• Background in presales and client engagement
+• Knowledge of Agile methodologies and project management
+• Experience with IoT solutions and edge computing
+
+We offer a collaborative environment where innovation is encouraged, and you'll have the opportunity to work on cutting-edge projects that make a real impact. Join our team and help shape the future of cloud technology!
