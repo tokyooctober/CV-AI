@@ -142,8 +142,8 @@ The program is designed to work with OpenAI's GPT-4 API but can be adapted for o
 The program generates a Word document with the following structure:
 
 ```
-                    Luke Woo
-        (65) 98513942 | sglukewoo@gmail.com | linkedin.com/in/luke-woo | Singaporean
+                    Your Full ame
+        (65) 9xxx | xxx@gmail.com | linkedin.com/in/XXX | Nationality
 
 Summary
 [Customized summary matching job description language and style]

@@ -1,0 +1,104 @@
+# Prompts and Messages Configuration for CVCustomizer
+# This file contains all system messages, prompts, and UI strings
+
+# API Configuration
+api:
+  model: "gpt-4"
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30
+
+# System Messages for LLM API calls
+system_messages:
+  summarize_experience: |
+    You are an expert CV writer. Create a compelling professional summary based on the candidate's experience that aligns with the job requirements. 
+    Focus on key achievements, relevant skills, and experience that match the job description. Write in a professional tone that highlights the candidate's value proposition.
+  
+  customize_summary: |
+    You are an expert CV writer. Rewrite the given CV summary to match the language, style, and key requirements found in the job description. 
+    Maintain the same achievements and experience but adapt the language to align with the job posting's terminology and focus areas.
+  
+  customize_achievements: |
+    You are going to act as a professional resume writer skilled in presenting information concisely and using niche-appropriate language, while avoiding redundancy and cliché terms. Your task is to position my experience as a solution to my target company's pain points, tailoring it specifically so that it's clear that I can manage the primary requirements of the job.
+
+# Prompts for LLM API calls
+prompts:
+  summarize_experience: |
+    Job Description:
+    {job_description}
+    
+    Candidate's Professional Experience:
+    {experience_text}
+    
+    Please create a compelling professional summary (2-3 paragraphs) that highlights the candidate's most relevant experience and achievements for this specific role. Focus on:
+    1. Key technical skills and expertise
+    2. Notable achievements and impact
+    3. Leadership and collaboration experience
+    4. How their background aligns with the job requirements
+    
+    Write in first person and make it engaging and professional.
+  
+  customize_summary: |
+    Job Description:
+    {job_description}
+    
+    Original CV Summary:
+    {original_summary}
+    
+    Please rewrite the CV summary to match the language, style, and key requirements from the job description while maintaining the same achievements and experience.
+  
+  customize_achievements: |
+    Job Description:
+    {job_description}
+    
+    Company: {company_name}
+    Job Title: {job_title}
+    
+    Original Achievements:
+    {achievements_text}
+    
+    I want you to rewrite each achievement and tailor it specifically using similar language and style to what's written in the job description. "- ".
+
+
+
+# Error and warning messages
+messages:
+  warnings:
+    no_api_key: "Warning: No API key provided. Set LLM_API_KEY environment variable or pass api_key parameter."
+    no_api_key_available: "Warning: No API key available. Returning original content."
+    unexpected_api_response: "Warning: Unexpected API response format. Returning original content."
+    api_call_failed: "Warning: API call failed: {error}. Returning original content."
+  
+  errors:
+    file_not_found: "CV template file '{file}' not found."
+    yaml_parse_error: "Error parsing YAML file: {error}"
+    job_description_file_error: "Pls provide filename to the job desscription. Unable to open the file:{file}."
+  
+  success:
+    cv_saved: "Customized CV saved to: {output_file}"
+    cv_customization_completed: "CV customization completed successfully!"
+    output_file: "Output file: {output_file}"
+
+
+
+# Output file naming
+output_settings:
+  default_prefix: "customized_cv_"
+  timestamp_format: "%Y%m%d_%H%M%S"
+  file_extension: ".docx"
+
+# HTTP headers
+http_headers:
+  authorization: "Authorization"
+  content_type: "Content-Type"
+  bearer_prefix: "Bearer {api_key}"
+  application_json: "application/json"
+
+# API response parsing
+api_response:
+  choices_key: "choices"
+  message_key: "message"
+  content_key: "content"
+  min_choices_length: 1
+
+

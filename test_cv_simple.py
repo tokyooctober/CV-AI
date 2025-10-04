@@ -6,10 +6,13 @@ Demonstrates functionality without requiring API key.
 
 import os
 import sys
+import traceback
+import argparse
+from datetime import datetime
 from cv_customizer import CVCustomizer
 
 
-def test_cv_customization():
+def test_cv_customization(enable_LLM=True):
     """Test the CV customization functionality."""
 
     print("=== CV Customization System Test ===\n")
@@ -69,39 +72,49 @@ def test_cv_customization():
         print(f"✓ Successfully loaded CV template for: {cv_data['name']}")
         print(f"✓ Found {len(cv_data['experience'])} work experiences")
 
-        # Test summary customization (will return original without API key)
-        print("\nStep 2: Testing summary customization...")
-        original_summary = cv_data["summary"]
-        customized_summary = customizer.customize_summary(
-            original_summary, job_description
-        )
-        print(f"✓ Summary customization completed")
-        print(f"  Original length: {len(original_summary)} characters")
-        print(f"  Customized length: {len(customized_summary)} characters")
+ 
 
         # Test achievement customization for first experience
-        print("\nStep 3: Testing achievement customization...")
-        if cv_data["experience"] and cv_data["experience"][0]["achievements"]:
-            first_experience = cv_data["experience"][0]
-            original_achievements = first_experience["achievements"]
-            customized_achievements = customizer.customize_achievements(
-                original_achievements,
-                job_description,
-                first_experience["company"],
-                first_experience["title"],
-            )
-            print(
-                f"✓ Achievement customization completed for {first_experience['company']}"
-            )
-            print(f"  Original achievements: {len(original_achievements)}")
-            print(f"  Customized achievements: {len(customized_achievements)}")
+        print("\nStep 2: Testing achievement customization...")
+        if not enable_LLM:
+            print("Customization disabled. Skipping achievement customization.")
+        else:
+            if cv_data["experience"] and cv_data["experience"][0]["achievements"]:
+                first_experience = cv_data["experience"][0]
+                original_achievements = first_experience["achievements"]
+                customized_achievements = customizer.customize_achievements(
+                    original_achievements,
+                    job_description,
+                    first_experience["company"],
+                    first_experience["title"],
+                )
+                print(
+                    f"✓ Achievement customization completed for {first_experience['company']}"
+                )
+                print(f"  Original achievements: {len(original_achievements)}")
+                print(f"  Customized achievements: {len(customized_achievements)}")
+                cv_data["experience"][0]["achievements"] = customized_achievements
+                # print(f"xxxxxx cv_data['experience'][0]: {cv_data['experience'][0]}")
+                # print(f"Original achievements: {original_achievements}")
 
+       # Test summary customization (will return original without API key)
+        print("\nStep 3: Testing summary customization...")
+        original_summary = cv_data["summary"]
+        if not enable_LLM:
+            print("Customization disabled. Skipping summary customization.")
+        else:
+            customized_summary = customizer.customize_summary(
+            original_summary, job_description
+            )
+            print("✓ Summary customization completed")
+            print(f"  Original length: {len(original_summary)} characters")
+            print(f"  Customized length: {len(customized_summary)} characters")
+            cv_data["summary"] = customized_summary
+    
         # Test Word document generation
         print("\nStep 4: Testing Word document generation...")
-        output_file = "test_customized_cv.docx"
-
-        # Update CV data with customized content
-        cv_data["summary"] = customized_summary
+        current_time = datetime.now().strftime("%d%m%y%H%M%S")
+        output_file = f"test_customized_cv_{current_time}.docx"
 
         customizer.create_word_document(cv_data, output_file)
         print(f"✓ Word document generated: {output_file}")
@@ -125,9 +138,14 @@ def test_cv_customization():
 
     except Exception as e:
         print(f"\n✗ Test failed with error: {e}")
+        traceback.print_exc()
         return False
 
 
 if __name__ == "__main__":
-    success = test_cv_customization()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no-llm', action='store_true', help='Disable LLM customization')
+    args = parser.parse_args()
+
+    success = test_cv_customization(enable_LLM=not args.no_llm)
     sys.exit(0 if success else 1)

@@ -9,34 +9,67 @@ import requests
 import json
 import argparse
 import os
+from docx.shared import Pt
 from datetime import datetime
 from docx import Document
-from docx.shared import Inches
+from docx.shared import Cm, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.shared import OxmlElement, qn
+from docx.enum.text import WD_TAB_ALIGNMENT
 from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 import re
 
+OPENAI_API_KEY = "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"
+OPENAI_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+
 
 class CVCustomizer:
-    def __init__(self, api_key=None, api_endpoint=None):
+
+    def __init__(self, api_key=OPENAI_API_KEY, api_endpoint=OPENAI_API_ENDPOINT, config_file="prompts_config.yaml"):
         """
-        Initialize the CV Customizer with API credentials.
+        Initialize the CV Customizer with API credentials and configuration.
 
         Args:
             api_key (str): API key for the LLM service
             api_endpoint (str): API endpoint URL
+            config_file (str): Path to configuration file
         """
         self.api_key = api_key or os.getenv("LLM_API_KEY")
         self.api_endpoint = api_endpoint or os.getenv(
-            "LLM_API_ENDPOINT", "https://api.openai.com/v1/chat/completions"
+            "LLM_API_ENDPOINT", "https://api.openai.com/v1/chatP/completions"
         )
+        
+        # Load configuration
+        self.config = self._load_config(config_file)
 
         if not self.api_key:
-            print(
-                "Warning: No API key provided. Set LLM_API_KEY environment variable or pass api_key parameter."
-            )
+            print(self.config['messages']['warnings']['no_api_key'])
+    
+    def _load_config(self, config_file):
+        """Load configuration from YAML file"""
+        try:
+            with open(config_file, "r", encoding="utf-8") as file:
+                return yaml.safe_load(file)
+        except FileNotFoundError:
+            print(f"Warning: Configuration file '{config_file}' not found. Using default values.")
+            return self._get_default_config()
+        except yaml.YAMLError as e:
+            print(f"Warning: Error parsing configuration file: {e}. Using default values.")
+            return self._get_default_config()
+    
+    def _get_default_config(self):
+        """Get default configuration as fallback"""
+        return {
+            'messages': {
+                'warnings': {
+                    'no_api_key': "Warning: No API key provided. Set LLM_API_KEY environment variable or pass api_key parameter.",
+                    'no_api_key_available': "Warning: No API key available. Returning original content.",
+                    'unexpected_api_response': "Warning: Unexpected API response format. Returning original content.",
+                    'api_call_failed': "Warning: API call failed: {error}. Returning original content."
+                }
+            }
+        }
 
     def load_cv_template(self, yaml_file):
         """
@@ -52,9 +85,11 @@ class CVCustomizer:
             with open(yaml_file, "r", encoding="utf-8") as file:
                 return yaml.safe_load(file)
         except FileNotFoundError:
-            raise FileNotFoundError(f"CV template file '{yaml_file}' not found.")
+            error_msg = self.config.get('messages', {}).get('errors', {}).get('file_not_found', "CV template file '{file}' not found.")
+            raise FileNotFoundError(error_msg.format(file=yaml_file))
         except yaml.YAMLError as e:
-            raise ValueError(f"Error parsing YAML file: {e}")
+            error_msg = self.config.get('messages', {}).get('errors', {}).get('yaml_parse_error', "Error parsing YAML file: {error}")
+            raise ValueError(error_msg.format(error=e))
 
     def call_llm_api(self, prompt, system_message=None):
         """
@@ -68,12 +103,16 @@ class CVCustomizer:
             str: LLM response
         """
         if not self.api_key:
-            print("Warning: No API key available. Returning original content.")
+            print(self.config['messages']['warnings']['no_api_key_available'])
             return prompt
 
+        # Get API configuration
+        api_config = self.config.get('api', {})
+        headers_config = self.config.get('http_headers', {})
+        
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
+            headers_config.get('authorization', 'Authorization'): f"{headers_config.get('bearer_prefix', 'Bearer {api_key}').format(api_key=self.api_key)}",
+            headers_config.get('content_type', 'Content-Type'): headers_config.get('application_json', 'application/json'),
         }
 
         messages = []
@@ -82,56 +121,90 @@ class CVCustomizer:
         messages.append({"role": "user", "content": prompt})
 
         data = {
-            "model": "gpt-4",
+            "model": api_config.get('model', 'gpt-4'),
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 2000,
+            "temperature": api_config.get('temperature', 0.7),
+            "max_tokens": api_config.get('max_tokens', 2000),
         }
 
         try:
             response = requests.post(
-                self.api_endpoint, headers=headers, json=data, timeout=30
+                self.api_endpoint, headers=headers, json=data, timeout=api_config.get('timeout', 30)
             )
             response.raise_for_status()
 
             result = response.json()
-            if "choices" in result and len(result["choices"]) > 0:
-                return result["choices"][0]["message"]["content"].strip()
+            api_response_config = self.config.get('api_response', {})
+            choices_key = api_response_config.get('choices_key', 'choices')
+            message_key = api_response_config.get('message_key', 'message')
+            content_key = api_response_config.get('content_key', 'content')
+            min_choices = api_response_config.get('min_choices_length', 1)
+            
+            if choices_key in result and len(result[choices_key]) >= min_choices:
+                return result[choices_key][0][message_key][content_key].strip()
             else:
-                print(
-                    "Warning: Unexpected API response format. Returning original content."
-                )
+                print(self.config['messages']['warnings']['unexpected_api_response'])
                 return prompt
 
         except requests.exceptions.RequestException as e:
-            print(f"Warning: API call failed: {e}. Returning original content.")
+            error_msg = self.config['messages']['warnings']['api_call_failed']
+            print(error_msg.format(error=e))
             return prompt
 
-    def customize_summary(self, original_summary, job_description):
+    def summarize_experience(self, experience_data, job_description):
         """
-        Customize CV summary based on job description.
+        Generate a professional summary based on experience data and job description.
 
         Args:
-            original_summary (str): Original CV summary
+            experience_data (list): List of experience dictionaries
             job_description (str): Job description to match
 
         Returns:
-            str: Customized summary
+            str: Generated professional summary
         """
-        system_message = """You are an expert CV writer. Rewrite the given CV summary to match the language, style, and key requirements found in the job description. 
-        Maintain the same achievements and experience but adapt the language to align with the job posting's terminology and focus areas."""
+        system_message = self.config['system_messages']['summarize_experience']
 
-        prompt = f"""
-        Job Description:
-        {job_description}
-        
-        Original CV Summary:
-        {original_summary}
-        
-        Please rewrite the CV summary to match the language, style, and key requirements from the job description while maintaining the same achievements and experience.
-        """
+        # Format experience data for the prompt
+        experience_templates = self.config.get('experience_templates', {})
+        experience_text = ""
+        for exp in experience_data:
+            experience_text += f"\n{experience_templates.get('company', 'Company: {company}').format(company=exp['company'])}\n"
+            experience_text += f"{experience_templates.get('period', 'Period: {period}').format(period=exp['period'])}\n"
+            experience_text += f"{experience_templates.get('title', 'Title: {title}').format(title=exp['title'])}\n"
+            if exp.get('achievements'):
+                experience_text += f"{experience_templates.get('achievements_header', 'Key Achievements:')}\n"
+                for achievement in exp['achievements']:
+                    experience_text += f"{experience_templates.get('achievement_item', '- {achievement}').format(achievement=achievement)}\n"
+            experience_text += "\n"
+
+        prompt_template = self.config['prompts']['summarize_experience']
+        prompt = prompt_template.format(
+            job_description=job_description,
+            experience_text=experience_text
+        )
 
         return self.call_llm_api(prompt, system_message)
+
+    # def customize_summary(self, original_summary, job_description):
+    #     """
+    #     Customize CV summary based on job description.
+
+    #     Args:
+    #         original_summary (str): Original CV summary
+    #         job_description (str): Job description to match
+
+    #     Returns:
+    #         str: Customized summary
+    #     """
+    #     system_message = self.config['system_messages']['customize_summary']
+
+    #     prompt_template = self.config['prompts']['customize_summary']
+    #     prompt = prompt_template.format(
+    #         job_description=job_description,
+    #         original_summary=original_summary
+    #     )
+
+    #     return self.call_llm_api(prompt, system_message)
 
     def customize_achievements(
         self, achievements, job_description, company_name, job_title
@@ -151,42 +224,91 @@ class CVCustomizer:
         if not achievements:
             return []
 
-        system_message = """You are an expert CV writer. Rewrite the given achievements to match the language, style, and key requirements found in the job description. 
-        Maintain the same accomplishments but adapt the language to align with the job posting's terminology and focus areas. Return only the rewritten achievements, one per line."""
+        system_message = self.config['system_messages']['customize_achievements']
 
+        achievement_patterns = self.config.get('achievement_patterns', {})
+        dash_prefix = achievement_patterns.get('dash_prefix', '- ')
+        # print(f"xxxxxx achievements: {achievements}")
         achievements_text = "\n".join(
-            [f"- {achievement}" for achievement in achievements]
+            [f"{dash_prefix}{achievement}" for achievement in achievements]
         )
 
-        prompt = f"""
-        Job Description:
-        {job_description}
-        
-        Company: {company_name}
-        Job Title: {job_title}
-        
-        Original Achievements:
-        {achievements_text}
-        
-        Please rewrite these achievements to match the language, style, and key requirements from the job description while maintaining the same accomplishments.
-        Return only the rewritten achievements, one per line starting with "- ".
-        """
+        prompt_template = self.config['prompts']['customize_achievements']
+        prompt = prompt_template.format(
+            job_description=job_description,
+            company_name=company_name,
+            job_title=job_title,
+            achievements_text=achievements_text
+        )
 
         response = self.call_llm_api(prompt, system_message)
 
         # Parse the response back into a list
         customized_achievements = []
+        dash_prefix = achievement_patterns.get('dash_prefix', '- ')
+        bullet_prefix = achievement_patterns.get('bullet_prefix', '• ')
+        comment_prefix = achievement_patterns.get('comment_prefix', '#')
+        
         for line in response.split("\n"):
             line = line.strip()
-            if line.startswith("- "):
-                customized_achievements.append(line[2:])
-            elif line.startswith("• "):
-                customized_achievements.append(line[2:])
-            elif line and not line.startswith("#"):
+            if line.startswith(dash_prefix):
+                customized_achievements.append(line[len(dash_prefix):])
+            elif line.startswith(bullet_prefix):
+                customized_achievements.append(line[len(bullet_prefix):])
+            elif line and not line.startswith(comment_prefix):
                 customized_achievements.append(line)
 
         return customized_achievements if customized_achievements else achievements
 
+    def add_title(self, doc, text):
+        """
+        Add title to the document.
+
+        Args:
+            doc (Document): Document object
+            text (str): Title text
+
+        Returns:
+            str: Title text
+        """
+        # Create a single cell table
+        # Create a new Document and add a single-cell table
+        table = doc.add_table(rows=1, cols=1)
+        cell = table.cell(0, 0)
+
+        # Remove left and right borders
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+
+        tcBorders = OxmlElement('w:tcBorders')
+        for border_name in ('top', 'bottom', 'left', 'right'):
+            border = OxmlElement(f'w:{border_name}')
+            if border_name in ('left', 'right'):
+                border.set(qn('w:val'), 'nil')
+            else:
+                border.set(qn('w:val'), 'single')
+                border.set(qn('w:sz'), '4')
+                border.set(qn('w:space'), '0')
+                border.set(qn('w:color'), 'auto')
+            tcBorders.append(border)
+        tcPr.append(tcBorders)
+
+        cell.text = ""
+        paragraph = cell.paragraphs[0]
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # Remove all top and bottom spacings in the paragraph
+        paragraph.paragraph_format.space_before = Pt(0)
+        paragraph.paragraph_format.space_after = Pt(0)
+        run = paragraph.add_run(text)
+        run.bold = True
+        run.font.size = Pt(12)
+        run.font.name = 'Calibri'
+
+        return table
+
+        
     def create_word_document(self, cv_data, output_file):
         """
         Create Word document with the customized CV.
@@ -197,17 +319,35 @@ class CVCustomizer:
         """
         doc = Document()
 
+        # Set default paragraph spacing to 0 before and after for the whole document
+        # Set global default paragraph spacing to 0 before and after for all styles
+        for style in doc.styles:
+            if style.type == 1:  # 1 = WD_STYLE_TYPE.PARAGRAPH
+                if hasattr(style, 'paragraph_format'):
+                    style.paragraph_format.space_before = Pt(0)
+                    style.paragraph_format.space_after = Pt(0)
+                if hasattr(style, 'font'):
+                    style.font.name = 'Calibri'
+                    style.font.size = Pt(10)
+
         # Set up document margins
-        sections = doc.sections
-        for section in sections:
-            section.top_margin = Inches(0.5)
-            section.bottom_margin = Inches(0.5)
-            section.left_margin = Inches(0.75)
-            section.right_margin = Inches(0.75)
+        doc_sections = doc.sections
+        for section in doc_sections:
+            section.top_margin = Cm(1.27)
+            section.bottom_margin = Cm(1.27)
+            section.left_margin = Cm(1.27)
+            section.right_margin = Cm(1.27)
+            # Set A4 page size for all sections
+            section.page_width = Cm(21.0)
+            section.page_height = Cm(29.7)
 
         # Add name as title
-        title = doc.add_heading(cv_data["name"], 0)
+        title = doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        title_run = title.add_run(cv_data["name"])
+        title_run.bold = True
+        title_run.font.size = Pt(16)
+        #title_run.font.name = 'Calibri'
 
         # Add contact information
         contact = cv_data["contact"]
@@ -224,49 +364,88 @@ class CVCustomizer:
         if "nationality" in contact:
             contact_info.append(contact["nationality"])
 
-        contact_para.add_run(" | ".join(contact_info))
+        contact_separator = " | "
+        contact_para.add_run(contact_separator.join(contact_info))
+
+        # doc_strings = self.config.get('document_strings', {})
+        # sections = doc_strings.get('sections', {})
+
+        self.add_title(doc, "SUMMARY")
 
         # Add summary section
-        doc.add_heading("Summary", level=1)
         summary_para = doc.add_paragraph()
         summary_para.add_run(cv_data["summary"])
 
         # Add professional experience section
-        doc.add_heading("Professional Experience", level=1)
+        self.add_title(doc, "PROFESSIONAL EXPERIENCE")
 
         for experience in cv_data["experience"]:
             # Company name and period (left and right justified)
             company_para = doc.add_paragraph()
-            company_run = company_para.add_run(experience["company"])
-            company_run.bold = True
+        
+            company_para.paragraph_format.tab_stops.clear_all()
+            company_para.paragraph_format.tab_stops.add_tab_stop(Inches(7), WD_ALIGN_PARAGRAPH.RIGHT)
 
-            # Add tab for right alignment of period
-            period_run = company_para.add_run("\t" + experience["period"])
-            period_run.bold = True
-
-            # Set tab stops for right alignment
-            tab_stops = company_para.paragraph_format.tab_stops
-            tab_stops.add_tab_stop(Inches(6.0), 2)  # Right-aligned tab
-
+            run = company_para.add_run(experience["company"]+"\t" + experience["period"])
+            run.font.size = Pt(12)
+            run.bold = True
+ 
             # Job title
             title_para = doc.add_paragraph()
-            title_para.add_run(experience["title"])
-            title_para.paragraph_format.left_indent = Inches(0.2)
+            run = title_para.add_run(experience["title"])
+            run.font.size = Pt(10)
+            run.bold = True
+            title_para.paragraph_format.left_indent = 0
 
             # Achievements
             if experience["achievements"]:
                 for achievement in experience["achievements"]:
                     achievement_para = doc.add_paragraph()
-                    achievement_para.add_run("• " + achievement)
-                    achievement_para.paragraph_format.left_indent = Inches(0.4)
-                    achievement_para.paragraph_format.space_after = Inches(0.05)
+                    tab_stop_width = Inches(0.24)
+                    achievement_para.paragraph_format.left_indent = tab_stop_width
+                    achievement_para.paragraph_format.first_line_indent = -tab_stop_width
+                    
+                    tab_stops = achievement_para.paragraph_format.tab_stops
+                    tab_stops.add_tab_stop(tab_stop_width, WD_TAB_ALIGNMENT.LEFT)
+
+                    achievement_para.add_run("•\t" + achievement)
 
             # Add space between experiences
             doc.add_paragraph()
 
+        # Add certifications section
+        if "qualifications" in cv_data and cv_data["qualifications"]:
+
+            self.add_title(doc, "QUALIFICATIONS & PROFESSIONAL DEVELOPMENT")
+            
+            # Add certification data
+            for qualification in cv_data["qualifications"]:
+                year = str(qualification.get("year", ""))
+                certification = qualification.get("certification", "")
+
+                para = doc.add_paragraph()
+                pf = para.paragraph_format
+
+                # define the tab column
+                tab_width = Inches(1)
+                pf.tab_stops.add_tab_stop(tab_width, WD_TAB_ALIGNMENT.LEFT)
+
+                pf.left_indent = tab_width
+                pf.first_line_indent = -tab_width
+
+                # text with a tab character
+                if year:
+                    text = f"{year}\t{certification}"
+                else:
+                    text = f"\t{certification}"  # <-- tab even when year is empty
+
+                para.add_run(text)
+     
+
         # Save the document
         doc.save(output_file)
-        print(f"Customized CV saved to: {output_file}")
+        success_msg = self.config.get('messages', {}).get('success', {}).get('cv_saved', 'Customized CV saved to: {output_file}')
+        print(success_msg.format(output_file=output_file))
 
     def customize_cv(self, yaml_file, job_description, output_file=None):
         """
@@ -281,15 +460,13 @@ class CVCustomizer:
             str: Path to generated Word document
         """
         # Load CV template
-        print("Step 1: Loading CV template...")
+        step_messages = self.config.get('step_messages', {})
+        print(step_messages.get('loading_template', 'Step 1: Loading CV template...'))
         cv_data = self.load_cv_template(yaml_file)
 
-        # Customize summary
-        print("Step 2: Customizing summary...")
-        cv_data["summary"] = self.customize_summary(cv_data["summary"], job_description)
 
         # Customize achievements for each experience
-        print("Step 3: Customizing achievements...")
+        print(step_messages.get('customizing_achievements', 'Step 2: Customizing achievements...'))
         for experience in cv_data["experience"]:
             if experience["achievements"]:
                 experience["achievements"] = self.customize_achievements(
@@ -299,13 +476,20 @@ class CVCustomizer:
                     experience["title"],
                 )
 
+        # Generate summary from experience
+        print(step_messages.get('generating_summary', 'Step 3: Generating summary from experience...'))
+        cv_data["summary"] = self.summarize_experience(cv_data["experience"], job_description)
+
         # Generate output filename if not provided
         if not output_file:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = f"customized_cv_{timestamp}.docx"
+            output_settings = self.config.get('output_settings', {})
+            timestamp = datetime.now().strftime(output_settings.get('timestamp_format', '%Y%m%d_%H%M%S'))
+            prefix = output_settings.get('default_prefix', 'customized_cv_')
+            extension = output_settings.get('file_extension', '.docx')
+            output_file = f"{prefix}{timestamp}{extension}"
 
         # Create Word document
-        print("Step 4: Generating Word document...")
+        print(step_messages.get('generating_document', 'Step 4: Generating Word document...'))
         self.create_word_document(cv_data, output_file)
 
         return output_file
@@ -319,25 +503,33 @@ def main():
     parser.add_argument("yaml_file", help="Path to YAML CV template file")
     parser.add_argument("job_description", help="Job description text or path to file")
     parser.add_argument("-o", "--output", help="Output Word file path")
-    parser.add_argument("--api-key", help="LLM API key")
-    parser.add_argument("--api-endpoint", help="LLM API endpoint")
+    # parser.add_argument("--api-key", help="LLM API key")
+    # parser.add_argument("--api-endpoint", help="LLM API endpoint")
 
     args = parser.parse_args()
-
+    api_key = OPENAI_API_KEY
+    api_endpoint = OPENAI_API_ENDPOINT 
     # Read job description from file if it's a file path
     job_description = args.job_description
     if os.path.isfile(job_description):
         with open(job_description, "r", encoding="utf-8") as f:
             job_description = f.read()
+    else:
+        # Load configuration for error message
+        temp_customizer = CVCustomizer(api_key, api_endpoint)
+        error_msg = temp_customizer.config.get('messages', {}).get('errors', {}).get('job_description_file_error', 'Pls provide filename to the job desscription. Unable to open the file:{file}.')
+        print(f"\n{error_msg.format(file=job_description)}")
+        return  
 
     # Initialize customizer
-    customizer = CVCustomizer(api_key=args.api_key, api_endpoint=args.api_endpoint)
+    customizer = CVCustomizer(api_key, api_endpoint)
 
     # Customize CV
     output_file = customizer.customize_cv(args.yaml_file, job_description, args.output)
 
-    print(f"\nCV customization completed successfully!")
-    print(f"Output file: {output_file}")
+    success_messages = customizer.config.get('messages', {}).get('success', {})
+    print(f"\n{success_messages.get('cv_customization_completed', 'CV customization completed successfully!')}")
+    print(f"{success_messages.get('output_file', 'Output file: {output_file}').format(output_file=output_file)}")
 
 
 if __name__ == "__main__":
