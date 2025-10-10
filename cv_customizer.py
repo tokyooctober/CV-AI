@@ -20,7 +20,8 @@ from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 import re
 
-OPENAI_API_KEY = "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"
+#OPENAI_API_KEY = "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"
+OPENAI_API_KEY = "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"
 OPENAI_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
 
@@ -121,7 +122,7 @@ class CVCustomizer:
         messages.append({"role": "user", "content": prompt})
 
         data = {
-            "model": api_config.get('model', 'gpt-4'),
+            "model": api_config.get('model', 'gpt-3.5-turbo'),
             "messages": messages,
             "temperature": api_config.get('temperature', 0.7),
             "max_tokens": api_config.get('max_tokens', 2000),
@@ -469,12 +470,16 @@ class CVCustomizer:
         print(step_messages.get('customizing_achievements', 'Step 2: Customizing achievements...'))
         for experience in cv_data["experience"]:
             if experience["achievements"]:
+                # Print company and title before customizing achievements
+                print(f"Customizing achievements for: {experience['company']} - {experience['title']}")
+                print(f"Length before customizing: {len(experience['achievements'])}")
                 experience["achievements"] = self.customize_achievements(
                     experience["achievements"],
                     job_description,
                     experience["company"],
                     experience["title"],
                 )
+                print(f"Length after customizing: {len(experience['achievements'])}")
 
         # Generate summary from experience
         print(step_messages.get('generating_summary', 'Step 3: Generating summary from experience...'))
@@ -484,9 +489,15 @@ class CVCustomizer:
         if not output_file:
             output_settings = self.config.get('output_settings', {})
             timestamp = datetime.now().strftime(output_settings.get('timestamp_format', '%Y%m%d_%H%M%S'))
-            prefix = output_settings.get('default_prefix', 'customized_cv_')
+            yaml_prefix = os.path.splitext(os.path.basename(yaml_file))[0]
+            # Try to get the job description filename without extension, or fallback to string representation
+            if os.path.isfile(job_description):
+                jd_prefix = os.path.splitext(os.path.basename(job_description))[0]
+            else:
+                jd_prefix = os.path.splitext(os.path.basename(str(job_description)))[0]
+            prefix = f"{yaml_prefix}_{jd_prefix}_"
             extension = output_settings.get('file_extension', '.docx')
-            output_file = f"{prefix}{timestamp}{extension}"
+            output_file = f"{prefix}{timestamp}{extension}"  
 
         # Create Word document
         print(step_messages.get('generating_document', 'Step 4: Generating Word document...'))
@@ -502,7 +513,6 @@ def main():
     )
     parser.add_argument("yaml_file", help="Path to YAML CV template file")
     parser.add_argument("job_description", help="Job description text or path to file")
-    parser.add_argument("-o", "--output", help="Output Word file path")
     # parser.add_argument("--api-key", help="LLM API key")
     # parser.add_argument("--api-endpoint", help="LLM API endpoint")
 
@@ -525,7 +535,7 @@ def main():
     customizer = CVCustomizer(api_key, api_endpoint)
 
     # Customize CV
-    output_file = customizer.customize_cv(args.yaml_file, job_description, args.output)
+    output_file = customizer.customize_cv(args.yaml_file, job_description, output_file=None)
 
     success_messages = customizer.config.get('messages', {}).get('success', {})
     print(f"\n{success_messages.get('cv_customization_completed', 'CV customization completed successfully!')}")
