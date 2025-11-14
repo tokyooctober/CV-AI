@@ -1,20 +1,20 @@
 # Prompts and Messages Configuration for CVCustomizer
 # This file contains all system messages, prompts, and UI strings
-
+# model: "gpt-3.5-turbo"
 # API Configuration
 api:
-  model: "gpt-3.5-turbo"
+  model: "gpt-4.1"
   temperature: 0.4
-  max_tokens: 2000
+  max_tokens: 4096
   timeout: 30
 
 # System Messages for LLM API calls
 system_messages:
   summarize_experience: |
-    Using my attached resume , write 5-7 sentences to summarize my professional experience, including only what’s relevant to the job description. Highlight my experience or skills that are relevant. Showcase how my experience and expertise can address the JD pain points. Write it using resume language (passive third person).
+    Write response using resume language (passive third person)
   
   customize_achievements: |
-     I want you to rewrite each paragraph I give you as a resume bullet point, using similar language to what’s written in the job description.
+    Write the response using similar language to what’s written in the job description.
 
 # GPT-4 suitable prompts:
 # system_messages:
@@ -29,24 +29,21 @@ system_messages:
 # Prompts for LLM API calls
 prompts:
   summarize_experience: |
-    Job Description:
-    {job_description}
-    
+    Using my resume , write 5-7 sentences to summarize my professional experience, including only what’s relevant to the job description. Highlight my experience or skills that are relevant. Emphasis qualities that attracts and relevant to the hirer upfront.  Do not use the words "the candidate".
     Resume:
     {experience_text}
   
-  customize_achievements: |
-    Job Description:
-    {job_description}
-    
+  customize_achievements: |  
+    Rewrite each paragraph in Achievements as a resume bullet point, using similar language to what's written in the job description.  
+
+    Job Description: {job_description}
     Company: {company_name}
     Job Title: {job_title}
     
     Original Achievements:
     {achievements_text}
 
-
-  # Error and warning messages
+# Error and warning messages
 messages:
   warnings:
     no_api_key: "Warning: No API key provided. Set LLM_API_KEY environment variable or pass api_key parameter."
