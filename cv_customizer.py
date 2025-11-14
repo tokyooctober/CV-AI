@@ -127,9 +127,9 @@ class CVCustomizer:
         if system_message:
             messages.append({"role": "system", "content": system_message})
 
-        messages.append({"role": "user", "content": prompt})
+        #messages.append({"role": "user", "content": prompt})
 
-        #print(f"messages: {messages}")
+        print(f"messages: {messages}")
 
         data = {
             "model": api_config.get('model', 'gpt-3.5-turbo'),
@@ -227,7 +227,6 @@ class CVCustomizer:
             str: Generated professional summary
         """
         system_message = self.config['system_messages']['summarize_experience']
-        #system_message = system_template.format(job_description=job_description)
 
         # Format experience data for the prompt
         experience_templates = self.config.get('experience_templates', {})
@@ -271,14 +270,15 @@ class CVCustomizer:
     #     return self.call_llm_api(prompt, system_message)
 
     def customize_achievements(
-        self, job_description, achievements, company_name, job_title
+        self, jd_file, job_description, achievements, company_name, job_title
     ):
         """
         Customize achievements for a specific role based on job description.
 
         Args:
-            achievements (list): List of achievement strings
+            jd_file (str): Job description file path (not used in current implementation)
             job_description (str): Job description to match
+            achievements (list): List of achievement strings
             company_name (str): Company name for context
             job_title (str): Job title for context
 
@@ -299,7 +299,6 @@ class CVCustomizer:
 
         prompt_template = self.config['prompts']['customize_achievements']
         prompt = prompt_template.format(
-            job_description=job_description,
             company_name=company_name,
             job_title=job_title,
             job_description=job_description,
@@ -512,7 +511,7 @@ class CVCustomizer:
         success_msg = self.config.get('messages', {}).get('success', {}).get('cv_saved', 'Customized CV saved to: {output_file}')
         print(success_msg.format(output_file=output_file))
 
-    def customize_cv(self, yaml_file, job_description, output_file=None):
+    def customize_cv(self, yaml_file, jd_file, job_description, output_file=None):
         """
         Main method to customize CV based on job description.
 
@@ -529,11 +528,6 @@ class CVCustomizer:
         print(step_messages.get('loading_template', 'Step 1: Loading CV template...'))
         cv_data = self.load_cv_template(yaml_file)
 
-        #HERE
-        # Initialize LLM context with the Job Description and store the response id
-        # print(step_messages.get('initializing_llm_context', 'Step 1b: Initializing LLM context from Job Description...'))
-        # self.create_jd_context(job_description)
-
         # Customize achievements for each experience
         print(step_messages.get('customizing_achievements', 'Step 2: Customizing achievements...'))
         for experience in cv_data["experience"]:
@@ -542,9 +536,9 @@ class CVCustomizer:
                 print(f"Customizing achievements for: {experience['company']} - {experience['title']}")
                 print(f"Length before customizing: {len(experience['achievements'])}")
                 experience["achievements"] = self.customize_achievements(
+                    jd_file,
                     job_description,
                     experience["achievements"],
-                    job_description,
                     experience["company"],
                     experience["title"],
                 )
@@ -560,10 +554,10 @@ class CVCustomizer:
             timestamp = datetime.now().strftime(output_settings.get('timestamp_format', '%Y%m%d_%H%M%S'))
             yaml_prefix = os.path.splitext(os.path.basename(yaml_file))[0]
             # Try to get the job description filename without extension, or fallback to string representation
-            if os.path.isfile(job_description):
-                jd_prefix = os.path.splitext(os.path.basename(job_description))[0]
+            if os.path.isfile(jd_file):
+                jd_prefix = os.path.splitext(os.path.basename(jd_file))[0]
             else:
-                jd_prefix = os.path.splitext(os.path.basename(str(job_description)))[0]
+                jd_prefix = os.path.splitext(os.path.basename(str(jd_file)))[0]
             prefix = f"{yaml_prefix}_{jd_prefix}_"
             extension = output_settings.get('file_extension', '.docx')
             output_file = f"{prefix}{timestamp}{extension}"  
@@ -581,7 +575,7 @@ def main():
         description="Customize CV based on job description"
     )
     parser.add_argument("yaml_file", help="Path to YAML CV template file")
-    parser.add_argument("job_description", help="Job description text or path to file")
+    parser.add_argument("jd_file", help="Job description text or path to file")
     # parser.add_argument("--api-key", help="LLM API key")
     # parser.add_argument("--api-endpoint", help="LLM API endpoint")
 
@@ -589,22 +583,22 @@ def main():
     api_key = OPENAI_API_KEY
     api_endpoint = OPENAI_API_ENDPOINT 
     # Read job description from file if it's a file path
-    job_description = args.job_description
-    if os.path.isfile(job_description):
-        with open(job_description, "r", encoding="utf-8") as f:
+    jd_file = args.jd_file
+    if os.path.isfile(jd_file):
+        with open(jd_file, "r", encoding="utf-8") as f:
             job_description = f.read()
     else:
         # Load configuration for error message
         temp_customizer = CVCustomizer(api_key, api_endpoint)
         error_msg = temp_customizer.config.get('messages', {}).get('errors', {}).get('job_description_file_error', 'Pls provide filename to the job desscription. Unable to open the file:{file}.')
-        print(f"\n{error_msg.format(file=job_description)}")
+        print(f"\n{error_msg.format(file=jd_file)}")
         return  
 
     # Initialize customizer
     customizer = CVCustomizer(api_key, api_endpoint)
 
     # Customize CV
-    output_file = customizer.customize_cv(args.yaml_file, job_description, output_file=None)
+    output_file = customizer.customize_cv(args.yaml_file, jd_file, job_description, output_file=None)
 
     success_messages = customizer.config.get('messages', {}).get('success', {})
     print(f"\n{success_messages.get('cv_customization_completed', 'CV customization completed successfully!')}")
