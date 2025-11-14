@@ -50,6 +50,10 @@ class CVCustomizer:
         # Will store the response id from an initial JD context call
         self.llm_context_id = None
     
+        
+        # Will store the response id from an initial JD context call
+        self.llm_context_id = None
+    
     def _load_config(self, config_file):
         """Load configuration from YAML file"""
         try:
@@ -122,9 +126,7 @@ class CVCustomizer:
         messages = []
         if system_message:
             messages.append({"role": "system", "content": system_message})
-        # Include context identifier if available for downstream calls
-        if getattr(self, 'llm_context_id', None):
-            messages.append({"previous_response_id": f"{self.llm_context_id}"})
+
         messages.append({"role": "user", "content": prompt})
 
         #print(f"messages: {messages}")
@@ -160,58 +162,60 @@ class CVCustomizer:
             print(error_msg.format(error=e))
             return prompt
 
-    def create_jd_context(self, job_description):
-        """
-        Create an initial LLM context using the job description and capture the response id
-        for use in subsequent calls.
+    # def create_jd_context(self, job_description):
+    #     """
+    #     Create an initial LLM context using the job description and capture the response id
+    #     for use in subsequent calls.
 
-        Args:
-            job_description (str): Job description text
+    #     Args:
+    #         job_description (str): Job description text
 
-        Returns:
-            str | None: Response id from the LLM call, or None if unavailable
-        """
-        if not self.api_key:
-            print(self.config['messages']['warnings']['no_api_key_available'])
-            return None
+    #     Returns:
+    #         str | None: Response id from the LLM call, or None if unavailable
+    #     """
+    #     if not self.api_key:
+    #         print(self.config['messages']['warnings']['no_api_key_available'])
+    #         return None
 
-        api_config = self.config.get('api', {})
-        headers_config = self.config.get('http_headers', {})
+    #     api_config = self.config.get('api', {})
+    #     headers_config = self.config.get('http_headers', {})
 
-        headers = {
-            headers_config.get('authorization', 'Authorization'): f"{headers_config.get('bearer_prefix', 'Bearer {api_key}').format(api_key=self.api_key)}",
-            headers_config.get('content_type', 'Content-Type'): headers_config.get('application_json', 'application/json'),
-        }
+    #     headers = {
+    #         headers_config.get('authorization', 'Authorization'): f"{headers_config.get('bearer_prefix', 'Bearer {api_key}').format(api_key=self.api_key)}",
+    #         headers_config.get('content_type', 'Content-Type'): headers_config.get('application_json', 'application/json'),
+    #     }
 
-        # Use a lightweight system instruction to establish context
-        messages = [
-            {"role": "system", "content": "Remember the provided Job Description as context for future turns."},
-            {"role": "user", "content": f"Job Description (store as context):\n{job_description}"},
-        ]
+    #     # Use a lightweight system instruction to establish context
+    #     messages = [
+    #         {"role": "system", "content": "Remember the provided Job Description as context for future chats."},
+    #         {"role": "user", "content": f"Job Description (store as context):\n{job_description}"},
+    #     ]
 
-        data = {
-            "model": api_config.get('model', 'gpt-3.5-turbo'),
-            "messages": messages,
-            "temperature": api_config.get('temperature', 0.2),
-            "max_tokens": api_config.get('max_tokens', 64),
-        }
+    #     data = {
+    #         "model": api_config.get('model', 'gpt-3.5-turbo'),
+    #         "messages": messages,
+    #         "temperature": api_config.get('temperature', 0.2),
+    #         "max_tokens": api_config.get('max_tokens', 64),
+    #     }
 
-        try:
-            response = requests.post(
-                self.api_endpoint, headers=headers, json=data, timeout=api_config.get('timeout', 30)
-            )
-            response.raise_for_status()
-            result = response.json()
-            # Root-level id is expected for OpenAI chat completions
-            context_id = result.get('id')
-            self.llm_context_id = context_id
-            return context_id
-        except requests.exceptions.RequestException as e:
-            error_msg = self.config['messages']['warnings']['api_call_failed']
-            print(error_msg.format(error=e))
-            return None
+    #     try:
+    #         response = requests.post(
+    #             self.api_endpoint, headers=headers, json=data, timeout=api_config.get('timeout', 30)
+    #         )
+    #         response.raise_for_status()
+    #         result = response.json()
+    #         print(f"create_jd_context response: {result}")
+    #         # Root-level id is expected for OpenAI chat completions
+    #         context_id = result.get('id')
+    #         print(f"LLM context initialized with response id: {context_id}")    
+    #         self.llm_context_id = context_id
+    #         return context_id
+    #     except requests.exceptions.RequestException as e:
+    #         error_msg = self.config['messages']['warnings']['api_call_failed']
+    #         print(error_msg.format(error=e))
+    #         return None
 
-    def summarize_experience(self, experience_data, job_description):
+    def summarize_experience(self, job_description, experience_data):
         """
         Generate a professional summary based on experience data and job description.
 
@@ -527,8 +531,8 @@ class CVCustomizer:
 
         #HERE
         # Initialize LLM context with the Job Description and store the response id
-        print(step_messages.get('initializing_llm_context', 'Step 1b: Initializing LLM context from Job Description...'))
-        self.create_jd_context(job_description)
+        # print(step_messages.get('initializing_llm_context', 'Step 1b: Initializing LLM context from Job Description...'))
+        # self.create_jd_context(job_description)
 
         # Customize achievements for each experience
         print(step_messages.get('customizing_achievements', 'Step 2: Customizing achievements...'))
