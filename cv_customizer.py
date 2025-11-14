@@ -46,6 +46,9 @@ class CVCustomizer:
 
         if not self.api_key:
             print(self.config['messages']['warnings']['no_api_key'])
+        
+        # Will store the response id from an initial JD context call
+        self.llm_context_id = None
     
     def _load_config(self, config_file):
         """Load configuration from YAML file"""
