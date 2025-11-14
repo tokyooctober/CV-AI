@@ -127,9 +127,9 @@ class CVCustomizer:
         if system_message:
             messages.append({"role": "system", "content": system_message})
 
-        #messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": prompt})
 
-        print(f"messages: {messages}")
+        #print(f"messages: {messages}")
 
         data = {
             "model": api_config.get('model', 'gpt-3.5-turbo'),
