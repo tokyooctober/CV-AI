@@ -20,14 +20,37 @@ from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 import re
 
-#OPENAI_API_KEY = "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"
-OPENAI_API_KEY = "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"
-OPENAI_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+DEFAULT_API_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+API_CONFIG_FILE = os.getenv("API_CONFIG_FILE", "api_config.yaml")
+
+
+def load_api_parameters(config_path=None):
+    """
+    Load API parameters (key and endpoint) from a YAML configuration file.
+
+    Args:
+        config_path (str | None): Path to the API configuration file.
+
+    Returns:
+        tuple[str | None, str | None]: API key and endpoint.
+    """
+    path = config_path or API_CONFIG_FILE
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            config = yaml.safe_load(file) or {}
+            api_key = config.get("api_key")
+            api_endpoint = config.get("api_endpoint")
+            return api_key, api_endpoint
+    except FileNotFoundError:
+        print(f"Warning: API configuration file '{path}' not found. Falling back to environment variables.")
+    except yaml.YAMLError as exc:
+        print(f"Warning: Could not parse API configuration file '{path}': {exc}. Falling back to environment variables.")
+    return None, None
 
 
 class CVCustomizer:
 
-    def __init__(self, api_key=OPENAI_API_KEY, api_endpoint=OPENAI_API_ENDPOINT, config_file="prompts_config.yaml"):
+    def __init__(self, api_key=None, api_endpoint=None, config_file="prompts_config.yaml", api_config_file=None):
         """
         Initialize the CV Customizer with API credentials and configuration.
 
@@ -35,10 +58,13 @@ class CVCustomizer:
             api_key (str): API key for the LLM service
             api_endpoint (str): API endpoint URL
             config_file (str): Path to configuration file
+            api_config_file (str): Path to API credential configuration file
         """
-        self.api_key = api_key or os.getenv("LLM_API_KEY")
-        self.api_endpoint = api_endpoint or os.getenv(
-            "LLM_API_ENDPOINT", "https://api.openai.com/v1/chatP/completions"
+        file_api_key, file_api_endpoint = load_api_parameters(api_config_file)
+
+        self.api_key = api_key or file_api_key or os.getenv("LLM_API_KEY")
+        self.api_endpoint = api_endpoint or file_api_endpoint or os.getenv(
+            "LLM_API_ENDPOINT", DEFAULT_API_ENDPOINT
         )
         
         # Load configuration
@@ -575,13 +601,12 @@ def main():
         description="Customize CV based on job description"
     )
     parser.add_argument("yaml_file", help="Path to YAML CV template file")
-    parser.add_argument("jd_file", help="Job description text or path to file")
+    parser.add_argument("jd_file", help="path to job description file")
     # parser.add_argument("--api-key", help="LLM API key")
     # parser.add_argument("--api-endpoint", help="LLM API endpoint")
 
     args = parser.parse_args()
-    api_key = OPENAI_API_KEY
-    api_endpoint = OPENAI_API_ENDPOINT 
+    api_key, api_endpoint = load_api_parameters()
     # Read job description from file if it's a file path
     jd_file = args.jd_file
     if os.path.isfile(jd_file):

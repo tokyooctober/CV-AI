@@ -27,24 +27,11 @@ A Python program that creates customized CVs based on job descriptions using LLM
 
 3. **Set up your API key:**
    
-   Option A: Set environment variable
-   ```bash
-   # Windows
-   set LLM_API_KEY=your_api_key_here
-   
-   # Linux/Mac
-   export LLM_API_KEY=your_api_key_here
-   ```
-   
-   Option B: Pass as command line argument (see usage below)
+   Set up your API kets in api_config.yaml.
 
 ## Usage
 
 ### Basic Usage
-
-```bash
-python cv_customizer.py cv2025.yaml "Job description text here"
-```
 
 ### Using a Job Description File
 
@@ -52,31 +39,10 @@ python cv_customizer.py cv2025.yaml "Job description text here"
 python cv_customizer.py cv2025.yaml sample_job_description.txt
 ```
 
-### Specifying Output File
-
-```bash
-python cv_customizer.py cv2025.yaml sample_job_description.txt -o my_customized_cv.docx
-```
-
-### With API Key
-
-```bash
-python cv_customizer.py cv2025.yaml sample_job_description.txt --api-key your_api_key_here
-```
-
-### Custom API Endpoint
-
-```bash
-python cv_customizer.py cv2025.yaml sample_job_description.txt --api-endpoint https://your-api-endpoint.com/v1/chat/completions
-```
-
 ## Command Line Arguments
 
 - `yaml_file`: Path to YAML CV template file (required)
 - `job_description`: Job description text or path to file (required)
-- `-o, --output`: Output Word file path (optional)
-- `--api-key`: LLM API key (optional, can use environment variable)
-- `--api-endpoint`: LLM API endpoint URL (optional, defaults to OpenAI)
 
 ## YAML Template Format
 
@@ -122,7 +88,7 @@ The generated Word document includes:
 
 1. **Template Loading**: Reads CV data from YAML file
 2. **Content Analysis**: Analyzes job description for key terms and style
-3. **LLM Customization**: Uses AI to rewrite summary and achievements to match job requirements
+3. **LLM Customization**: Uses AI to rewrite summary and achievements to match the language and style found in the job requirements
 4. **Document Generation**: Creates professionally formatted Word document
 5. **Output**: Saves customized CV for further editing
 

@@ -16,14 +16,6 @@ system_messages:
   customize_achievements: |
     Write the response using similar language and style to the job description. Provide the response and do not add any additional commentary or remarks
 
-# GPT-4 suitable prompts:
-# system_messages:
-#   summarize_experience: |
-#     From resume → 5–7 sentence summary aligned to JD, highlighting relevant skills addressing pain points. Use passive third-person resume tone.
-  
-#   customize_achievements: |
-#     For each resume paragraph: output one bullet point aligned to the provided job description, mirroring its language and focus.
-
 
 
 # Prompts for LLM API calls
